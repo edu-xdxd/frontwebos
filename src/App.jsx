@@ -58,6 +58,13 @@ function App() {
       const status = await apiService.getPushSubscriptionStatus()
       setPushStatus(status)
       console.log('Estado de suscripción push:', status)
+      
+      // Log adicional para debugging en móvil
+      if (status.isMobile) {
+        console.log('📱 Dispositivo móvil detectado')
+        console.log('Contexto seguro:', status.isSecureContext)
+        console.log('Permisos:', status.permission)
+      }
     } catch (error) {
       console.error('Error verificando estado de suscripción push:', error)
       setPushStatus({ supported: false, error: error.message })
@@ -71,19 +78,23 @@ function App() {
       const status = await apiService.getPushSubscriptionStatus()
       
       if (!status.supported) {
-        alert('Tu navegador no soporta notificaciones push')
+        const message = status.reason || status.error || 'Tu navegador no soporta notificaciones push'
+        alert(`⚠️ ${message}`)
         setIsSubscribing(false)
+        await checkPushSubscriptionStatus()
         return
       }
 
       if (status.permission === 'default') {
-        // Solicitar permisos primero
+        // Solicitar permisos primero (esto debe ser desde una interacción del usuario)
+        console.log('📱 Solicitando permisos de notificación...')
         await apiService.requestNotificationPermission()
       } else if (status.permission === 'granted' && !status.subscribed) {
         // Ya tiene permisos, solo suscribirse
+        console.log('📱 Suscribiéndose a push...')
         await apiService.subscribeToPush()
       } else if (status.subscribed) {
-        alert('Ya estás suscrito a las notificaciones push')
+        alert('✅ Ya estás suscrito a las notificaciones push')
         setIsSubscribing(false)
         await checkPushSubscriptionStatus()
         return
@@ -94,7 +105,16 @@ function App() {
       alert('✅ Te has suscrito exitosamente a las notificaciones push')
     } catch (error) {
       console.error('Error suscribiéndose a push:', error)
-      alert(`Error al suscribirse: ${error.message}`)
+      let errorMessage = error.message
+      
+      // Mensajes más amigables para móvil
+      if (errorMessage.includes('denegados')) {
+        errorMessage = 'Los permisos fueron denegados. Por favor, habilítalos en la configuración de tu navegador.'
+      } else if (errorMessage.includes('HTTPS') || errorMessage.includes('localhost')) {
+        errorMessage = 'Las notificaciones push requieren HTTPS o localhost. Asegúrate de acceder desde un contexto seguro.'
+      }
+      
+      alert(`❌ Error al suscribirse: ${errorMessage}`)
     } finally {
       setIsSubscribing(false)
     }
@@ -370,53 +390,101 @@ function App() {
         {pushStatus && (
           <div style={{ marginTop: '15px' }}>
             {!pushStatus.supported ? (
-              <div style={{ padding: '10px', background: '#ffebee', borderRadius: '5px', color: '#c62828' }}>
-                ⚠️ Tu navegador no soporta notificaciones push
+              <div style={{ padding: '15px', background: '#ffebee', borderRadius: '5px', color: '#c62828' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+                  ⚠️ Notificaciones Push No Disponibles
+                </div>
+                <div style={{ fontSize: '14px' }}>
+                  {pushStatus.reason || pushStatus.error || 'Tu navegador no soporta notificaciones push'}
+                </div>
+                {pushStatus.isMobile && (
+                  <div style={{ marginTop: '10px', fontSize: '13px', fontStyle: 'italic' }}>
+                    💡 En dispositivos móviles, asegúrate de usar HTTPS o acceder desde localhost
+                  </div>
+                )}
               </div>
             ) : pushStatus.permission === 'denied' ? (
-              <div style={{ padding: '10px', background: '#ffebee', borderRadius: '5px', color: '#c62828' }}>
-                ❌ Los permisos de notificación fueron denegados. Por favor, habilítalos en la configuración de tu navegador.
+              <div style={{ padding: '15px', background: '#ffebee', borderRadius: '5px', color: '#c62828' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+                  ❌ Permisos Denegados
+                </div>
+                <div style={{ fontSize: '14px', marginBottom: '10px' }}>
+                  Los permisos de notificación fueron denegados.
+                </div>
+                {pushStatus.isMobile ? (
+                  <div style={{ fontSize: '13px' }}>
+                    <strong>Para habilitarlos en móvil:</strong>
+                    <ol style={{ marginTop: '8px', paddingLeft: '20px' }}>
+                      <li>Abre la configuración de tu navegador</li>
+                      <li>Busca "Permisos del sitio" o "Configuración del sitio"</li>
+                      <li>Habilita las notificaciones para este sitio</li>
+                      <li>Recarga la página</li>
+                    </ol>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '13px' }}>
+                    Por favor, habilita los permisos en la configuración de tu navegador y recarga la página.
+                  </div>
+                )}
               </div>
             ) : pushStatus.subscribed ? (
-              <div style={{ padding: '10px', background: '#e8f5e9', borderRadius: '5px', color: '#2e7d32' }}>
-                <div style={{ marginBottom: '10px' }}>
+              <div style={{ padding: '15px', background: '#e8f5e9', borderRadius: '5px', color: '#2e7d32' }}>
+                <div style={{ marginBottom: '10px', fontWeight: 'bold' }}>
                   ✅ Estás suscrito a las notificaciones push
                 </div>
+                {pushStatus.isMobile && (
+                  <div style={{ marginBottom: '10px', fontSize: '13px', opacity: 0.8 }}>
+                    📱 Recibirás notificaciones en este dispositivo
+                  </div>
+                )}
                 <button 
                   onClick={handleUnsubscribeFromPush}
                   disabled={isSubscribing}
                   style={{
-                    padding: '8px 16px',
+                    padding: '10px 20px',
                     background: '#f44336',
                     color: 'white',
                     border: 'none',
                     borderRadius: '5px',
                     cursor: isSubscribing ? 'not-allowed' : 'pointer',
-                    fontSize: '14px'
+                    fontSize: '14px',
+                    width: '100%',
+                    maxWidth: '200px'
                   }}
                 >
                   {isSubscribing ? 'Procesando...' : 'Desuscribirse'}
                 </button>
               </div>
             ) : (
-              <div style={{ padding: '10px', background: '#fff3e0', borderRadius: '5px', color: '#e65100' }}>
-                <div style={{ marginBottom: '10px' }}>
+              <div style={{ padding: '15px', background: '#fff3e0', borderRadius: '5px', color: '#e65100' }}>
+                <div style={{ marginBottom: '15px', fontWeight: 'bold' }}>
                   {pushStatus.permission === 'default' 
-                    ? '📱 Haz clic en el botón para activar las notificaciones push'
+                    ? (pushStatus.isMobile 
+                        ? '📱 Activa las notificaciones push para este dispositivo'
+                        : '🔔 Activa las notificaciones push')
                     : '✅ Tienes permisos, pero aún no estás suscrito'}
                 </div>
+                {pushStatus.permission === 'default' && pushStatus.isMobile && (
+                  <div style={{ marginBottom: '15px', fontSize: '13px', padding: '10px', background: '#fff9e6', borderRadius: '4px' }}>
+                    <strong>Importante:</strong> Al hacer clic en el botón, tu navegador te pedirá permiso para mostrar notificaciones. 
+                    Asegúrate de permitir las notificaciones para recibirlas en este dispositivo.
+                  </div>
+                )}
                 <button 
                   onClick={handleSubscribeToPush}
                   disabled={isSubscribing}
                   style={{
-                    padding: '10px 20px',
+                    padding: '12px 24px',
                     background: '#2196F3',
                     color: 'white',
                     border: 'none',
                     borderRadius: '5px',
                     cursor: isSubscribing ? 'not-allowed' : 'pointer',
                     fontSize: '16px',
-                    fontWeight: 'bold'
+                    fontWeight: 'bold',
+                    width: '100%',
+                    maxWidth: '300px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                   }}
                 >
                   {isSubscribing ? '⏳ Suscribiendo...' : '🔔 Suscribirse a Notificaciones'}

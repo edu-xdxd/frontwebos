@@ -879,19 +879,57 @@ class ApiService {
   // Verificar estado de suscripción
   async getPushSubscriptionStatus() {
     try {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        return { supported: false };
+      // Verificar soporte básico
+      if (!('Notification' in window)) {
+        return { 
+          supported: false, 
+          reason: 'Tu navegador no soporta notificaciones' 
+        };
+      }
+
+      if (!('serviceWorker' in navigator)) {
+        return { 
+          supported: false, 
+          reason: 'Tu navegador no soporta Service Workers' 
+        };
+      }
+
+      if (!('PushManager' in window)) {
+        return { 
+          supported: false, 
+          reason: 'Tu navegador no soporta Push API' 
+        };
+      }
+
+      // Verificar contexto seguro (HTTPS o localhost)
+      const isSecureContext = window.isSecureContext || 
+        location.protocol === 'https:' || 
+        location.hostname === 'localhost' || 
+        location.hostname === '127.0.0.1' ||
+        location.hostname.includes('192.168.') ||
+        location.hostname.includes('10.0.');
+
+      if (!isSecureContext) {
+        return { 
+          supported: false, 
+          reason: 'Las notificaciones push requieren HTTPS o localhost. Protocolo actual: ' + location.protocol 
+        };
       }
 
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
       const permission = Notification.permission;
 
+      // Detectar si es móvil
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
       return {
         supported: true,
         subscribed: !!subscription,
         permission: permission,
-        subscription: subscription
+        subscription: subscription,
+        isMobile: isMobile,
+        isSecureContext: isSecureContext
       };
     } catch (error) {
       console.error('Error verificando estado de suscripción:', error);

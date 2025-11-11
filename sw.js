@@ -54,14 +54,7 @@ self.addEventListener('activate', event => {
       })
       .then(() => {
         console.log('Service Worker: Activado y listo');
-        // Enviar mensaje a los clientes para solicitar permisos
-        return self.clients.matchAll().then(clients => {
-          clients.forEach(client => {
-            client.postMessage({
-              type: 'REQUEST_NOTIFICATION_PERMISSION'
-            });
-          });
-        }).then(() => self.clients.claim());
+        return self.clients.claim();
       })
   );
 });
