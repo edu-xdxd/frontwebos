@@ -49,6 +49,13 @@ function App() {
       
       // Verificar estado de suscripción push
       checkPushSubscriptionStatus()
+      
+      // Si ya tiene permisos concedidos, asegurar que la suscripción esté guardada
+      if ('Notification' in window && Notification.permission === 'granted') {
+        apiService.ensurePushSubscriptionSaved().catch(err => {
+          console.error('Error asegurando suscripción:', err)
+        })
+      }
     }
   }, [isAuthenticated])
 
@@ -71,53 +78,41 @@ function App() {
     }
   }
 
-  // Suscribirse a notificaciones push
-  const handleSubscribeToPush = async () => {
+  // Solicitar permisos de notificación (similar al Dashboard de referencia)
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+      alert('Tu navegador no soporta notificaciones')
+      return false
+    }
+
     setIsSubscribing(true)
     try {
-      const status = await apiService.getPushSubscriptionStatus()
+      const permission = await Notification.requestPermission()
+      const granted = permission === 'granted'
       
-      if (!status.supported) {
-        const message = status.reason || status.error || 'Tu navegador no soporta notificaciones push'
-        alert(`⚠️ ${message}`)
-        setIsSubscribing(false)
+      if (granted) {
+        // Si se otorgaron permisos, asegurar que la suscripción esté guardada
+        await apiService.ensurePushSubscriptionSaved()
         await checkPushSubscriptionStatus()
-        return
+        alert('✅ Notificaciones habilitadas correctamente')
+      } else {
+        alert('❌ Los permisos de notificación fueron denegados')
       }
-
-      if (status.permission === 'default') {
-        // Solicitar permisos primero (esto debe ser desde una interacción del usuario)
-        console.log('📱 Solicitando permisos de notificación...')
-        await apiService.requestNotificationPermission()
-      } else if (status.permission === 'granted' && !status.subscribed) {
-        // Ya tiene permisos, solo suscribirse
-        console.log('📱 Suscribiéndose a push...')
-        await apiService.subscribeToPush()
-      } else if (status.subscribed) {
-        alert('✅ Ya estás suscrito a las notificaciones push')
-        setIsSubscribing(false)
-        await checkPushSubscriptionStatus()
-        return
-      }
-
-      // Actualizar estado
-      await checkPushSubscriptionStatus()
-      alert('✅ Te has suscrito exitosamente a las notificaciones push')
+      
+      return granted
     } catch (error) {
-      console.error('Error suscribiéndose a push:', error)
-      let errorMessage = error.message
-      
-      // Mensajes más amigables para móvil
-      if (errorMessage.includes('denegados')) {
-        errorMessage = 'Los permisos fueron denegados. Por favor, habilítalos en la configuración de tu navegador.'
-      } else if (errorMessage.includes('HTTPS') || errorMessage.includes('localhost')) {
-        errorMessage = 'Las notificaciones push requieren HTTPS o localhost. Asegúrate de acceder desde un contexto seguro.'
-      }
-      
-      alert(`❌ Error al suscribirse: ${errorMessage}`)
+      console.error('Error solicitando permisos:', error)
+      alert(`❌ Error: ${error.message}`)
+      return false
     } finally {
       setIsSubscribing(false)
     }
+  }
+
+  // Suscribirse a notificaciones push
+  const handleSubscribeToPush = async () => {
+    // Usar la función simplificada de solicitud de permisos
+    await requestNotificationPermission()
   }
 
   // Desuscribirse de notificaciones push
@@ -475,7 +470,7 @@ function App() {
                   disabled={isSubscribing}
                   style={{
                     padding: '12px 24px',
-                    background: '#2196F3',
+                    background: pushStatus?.subscribed ? '#4CAF50' : '#2196F3',
                     color: 'white',
                     border: 'none',
                     borderRadius: '5px',
@@ -486,8 +481,13 @@ function App() {
                     maxWidth: '300px',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                   }}
+                  title={pushStatus?.subscribed ? 'Notificaciones habilitadas' : 'Habilitar notificaciones'}
                 >
-                  {isSubscribing ? '⏳ Suscribiendo...' : '🔔 Suscribirse a Notificaciones'}
+                  {isSubscribing 
+                    ? '⏳ Suscribiendo...' 
+                    : pushStatus?.subscribed 
+                      ? '🔔 Notificaciones Activas' 
+                      : '🔔 Activar Notificaciones'}
                 </button>
               </div>
             )}

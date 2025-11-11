@@ -647,7 +647,53 @@ class ApiService {
     };
   }
 
-  // Solicitar permisos de notificación y suscribirse a push
+  // Asegurar que la suscripción push esté guardada (similar al Dashboard de referencia)
+  async ensurePushSubscriptionSaved() {
+    try {
+      if (!('serviceWorker' in navigator)) {
+        console.warn('Service Worker no disponible');
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      let subscription = await reg.pushManager.getSubscription();
+      
+      if (!subscription) {
+        // Verificar que tenemos la VAPID key
+        if (!VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY === 'TU_VAPID_PUBLIC_KEY_AQUI') {
+          throw new Error('VAPID Public Key no está configurada');
+        }
+
+        // Convertir VAPID key a Uint8Array
+        const applicationServerKey = this.urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+        
+        console.log('📱 Creando suscripción push...');
+        subscription = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey
+        });
+        console.log('✅ Suscripción creada:', subscription);
+      }
+
+      // Obtener usuario actual
+      const currentUser = this.getCurrentUser();
+      if (!currentUser || !currentUser.id) {
+        console.warn('No hay usuario logueado, no se puede guardar la suscripción');
+        return;
+      }
+
+      // Enviar suscripción al servidor
+      await this.sendSubscriptionToServer(subscription);
+      console.log('✅ Suscripción guardada en el servidor');
+      
+      return subscription;
+    } catch (error) {
+      console.error('Error asegurando suscripción:', error);
+      throw error;
+    }
+  }
+
+  // Solicitar permisos de notificación y suscribirse a push (método legacy, mantener por compatibilidad)
   async requestNotificationPermission() {
     try {
       if (!('Notification' in window)) {
@@ -671,8 +717,8 @@ class ApiService {
 
       console.log('✅ Permisos de notificación concedidos');
       
-      // Suscribirse a push
-      await this.subscribeToPush();
+      // Asegurar que la suscripción esté guardada
+      await this.ensurePushSubscriptionSaved();
       
       return { success: true, permission };
     } catch (error) {
