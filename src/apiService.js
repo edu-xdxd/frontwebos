@@ -149,6 +149,33 @@ class ApiService {
     }
   }
 
+  // Enviar notificación push a un usuario específico (solo para admin)
+  async sendPushNotificationToUser(userId, title, body) {
+    try {
+      const response = await fetch(`${this.baseURL}/push/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: userId,
+          title: title,
+          body: body
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error enviando notificación push:', error);
+      throw error;
+    }
+  }
+
   // Método principal para hacer peticiones POST
   async post(endpoint, data) {
     const url = `${this.baseURL}${endpoint}`;
