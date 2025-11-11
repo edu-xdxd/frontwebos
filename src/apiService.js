@@ -5,7 +5,7 @@ import { VAPID_PUBLIC_KEY } from './config.js';
 class ApiService {
   constructor() {
     // Cambiar a tu API local
-    this.baseURL = 'http://localhost:3000/api'; // Tu API local
+    this.baseURL = 'https://backwebos.onrender.com/api'; // Tu API local
     this.maxRetries = 3;
     this.retryDelay = 1000; // 1 segundo
     this.isOnline = navigator.onLine;
